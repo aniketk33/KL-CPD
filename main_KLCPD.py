@@ -101,7 +101,7 @@ parser.add_argument('--data_path', type=str, required=True, help='path to data i
 parser.add_argument('--trn_ratio', type=float, default=0.6,help='how much data used for training')
 parser.add_argument('--val_ratio', type=float, default=0.8,help='how much data used for validation')
 parser.add_argument('--gpu', type=int, default=0, help='gpu device id')
-parser.add_argument('--cuda', type=str, default=True, help='use gpu or not')
+parser.add_argument('--cuda', type=str, default=False, help='use gpu or not')
 parser.add_argument('--random_seed', type=int, default=1126,help='random seed')
 
 parser.add_argument('--wnd_dim', type=int, required=True, default=10, help='window size (past and future)')
@@ -144,12 +144,12 @@ if 'yahoo' in args.data_path:
 
 
 # ========= Setup GPU device and fix random seed=========#
-if torch.cuda.is_available():
-    args.cuda = True
-    torch.cuda.set_device(args.gpu)
-    print('Using GPU device', torch.cuda.current_device())
-else:
-    raise EnvironmentError("GPU device not available!")
+# if torch.cuda.is_available():
+#     args.cuda = True
+#     torch.cuda.set_device(args.gpu)
+#     print('Using GPU device', torch.cuda.current_device())
+# else:
+#     raise EnvironmentError("GPU device not available!")
 np.random.seed(seed=args.random_seed)
 random.seed(args.random_seed)
 torch.manual_seed(args.random_seed)
@@ -181,7 +181,7 @@ print(netG)
 print(netD)
 print('netG has number of parameters: %d' % (netG_params_count))
 print('netD has number of parameters: %d' % (netD_params_count))
-one = torch.cuda.FloatTensor([1])
+one = torch.FloatTensor([1]).cpu()
 mone = one * -1
 
 
@@ -205,7 +205,7 @@ optimizerD = Optim(netD.parameters(),
 #sigma_list = [1.0]
 #sigma_list = mmd_util.median_heuristic(Data.Y_subspace, beta=1.)
 sigma_list = mmd_util.median_heuristic(Data.Y_subspace, beta=.5)
-sigma_var = torch.FloatTensor(sigma_list).cuda()
+sigma_var = torch.FloatTensor(sigma_list).cpu()
 print('sigma_list:', sigma_var)
 
 
@@ -256,7 +256,7 @@ for epoch in range(1, args.max_iter + 1):
             X_f_enc, X_f_dec = netD(X_f)
 
             # fake data
-            noise = torch.cuda.FloatTensor(1, batch_size, args.RNN_hid_dim).normal_(0, 1)
+            noise = torch.FloatTensor(1, batch_size, args.RNN_hid_dim).normal_(0, 1).cpu()
             noise = Variable(noise, volatile=True) # total freeze netG
             Y_f = Variable(netG(X_p, X_f, noise).data)
             Y_f_enc, Y_f_dec = netD(Y_f)
@@ -299,7 +299,7 @@ for epoch in range(1, args.max_iter + 1):
         X_f_enc, X_f_dec = netD(X_f)
 
         # fake data
-        noise = torch.cuda.FloatTensor(1, batch_size, args.RNN_hid_dim).normal_(0, 1)
+        noise = torch.FloatTensor(1, batch_size, args.RNN_hid_dim).normal_(0, 1).cpu()
         noise = Variable(noise)
         Y_f = netG(X_p, X_f, noise)
         Y_f_enc, Y_f_dec = netD(Y_f)

@@ -36,13 +36,13 @@ def batch_mmd2_loss(X_p_enc, X_f_enc, sigma_var):
     # input: (batch_size*n_samples, nz)
     # output: (batch_size, n_samples, nz)
     def sample_gmm(W, batch_size):
-        U = torch.cuda.FloatTensor(batch_size*n_samples, n_mixtures).uniform_()
+        U = torch.FloatTensor(batch_size*n_samples, n_mixtures).cpu().uniform_()
         sigma_samples = F.softmax(U * gumbel_lmd).matmul(sigma_var)
         W_gmm = W.mul(1. / sigma_samples.unsqueeze(1))
         W_gmm = W_gmm.view(batch_size, n_samples, nz)
         return W_gmm
 
-    W = Variable(torch.cuda.FloatTensor(batch_size*n_samples, nz).normal_(0, 1))
+    W = Variable(torch.FloatTensor(batch_size*n_samples, nz).cpu().normal_(0, 1))
     W_gmm = sample_gmm(W, batch_size)                                   # batch_size x n_samples x nz
     W_gmm = torch.transpose(W_gmm, 1, 2).contiguous()                   # batch_size x nz x n_samples
     XW_p = torch.bmm(X_p_enc, W_gmm)                                    # batch_size x seq_len x n_samples
