@@ -181,7 +181,8 @@ print(netG)
 print(netD)
 print('netG has number of parameters: %d' % (netG_params_count))
 print('netD has number of parameters: %d' % (netD_params_count))
-one = torch.FloatTensor([1]).cpu()
+# one = torch.FloatTensor([1]).cpu()
+one = torch.tensor(1, dtype=torch.float).cpu()
 mone = one * -1
 
 
@@ -257,7 +258,8 @@ for epoch in range(1, args.max_iter + 1):
 
             # fake data
             noise = torch.FloatTensor(1, batch_size, args.RNN_hid_dim).normal_(0, 1).cpu()
-            noise = Variable(noise, volatile=True) # total freeze netG
+            noise = Variable(noise) # total freeze netG
+            torch.no_grad()
             Y_f = Variable(netG(X_p, X_f, noise).data)
             Y_f_enc, Y_f_dec = netD(Y_f)
 
@@ -276,7 +278,7 @@ for epoch in range(1, args.max_iter + 1):
             # update netD
             netD.zero_grad()
             lossD = D_mmd2.mean() - lambda_ae * (real_L2_loss + fake_L2_loss) - lambda_real * mmd2_real.mean()
-            #lossD = 0.0 * D_mmd2.mean() - lambda_ae * (real_L2_loss + fake_L2_loss) - lambda_real * mmd2_real.mean()
+            # lossD = 0.0 * D_mmd2.mean() - lambda_ae * (real_L2_loss + fake_L2_loss) - lambda_real * mmd2_real.mean()
             #lossD = -real_L2_loss
             lossD.backward(mone)
             optimizerD.step()
