@@ -41,11 +41,14 @@ class DataLoader(object):
         y_file = list(y_file)
         y_file[9] = 'y';
         y_file = ''.join(y_file);
-        self.Y = np.load(x_file).transpose(); # Y: time series data, time length x number of variables
+        # self.Y = np.load(x_file).transpose(); # Y: time series data, time length x number of variables
+        file_data = sio.loadmat(self.data_path)
+        self.Y =  file_data['Y'] # Y: time series data, time length x number of variables
         Y_mean = np.mean(self.Y);
         Y_std = np.std(self.Y);
         self.Y = (self.Y - Y_mean)/Y_std;
-        l_data = np.load(y_file);                               # L: label of anomaly, time length x 1
+        # l_data = np.load(y_file);                               # L: label of anomaly, time length x 1
+        l_data = file_data['L']                               # L: label of anomaly, time length x 1
         self.L = self.diff(l_data);
         self.T, self.D = self.Y.shape                           # T: time length; D: variable dimension
         self.n_trn = int(np.ceil(self.T * trn_ratio))           # n_trn: first index of val set
