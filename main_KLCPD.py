@@ -291,7 +291,7 @@ for epoch in range(1, args.max_iter + 1):
 
         if bidx == n_batchs:
             break
-
+        
         inputs = next(trn_loader)
         X_p, X_f = inputs[0], inputs[1]
         batch_size = X_p.size(0)
@@ -321,8 +321,8 @@ for epoch in range(1, args.max_iter + 1):
 
         print('[%5d/%5d] [%5d/%5d] [%6d] D_mmd2 %.4e G_mmd2 %.4e mmd2_real %.4e real_L2 %.6f fake_L2 %.6f'
               % (epoch, args.max_iter, bidx, n_batchs, gen_iterations,
-                 D_mmd2.mean().data[0], G_mmd2.mean().data[0], mmd2_real.mean().data[0],
-                 real_L2_loss.data[0], fake_L2_loss.data[0]))
+                 D_mmd2.mean().data.item(), G_mmd2.mean().data.item(), mmd2_real.mean().data.item(),
+                 real_L2_loss.data.item(), fake_L2_loss.data.item()))
 
         if gen_iterations % args.eval_freq == 0:
             # ========= Main block for evaluate MMD(X_p_enc, X_f_enc) on RNN codespace  =========#
@@ -337,8 +337,8 @@ for epoch in range(1, args.max_iter + 1):
             assert(np.isnan(val_dict['auc']) != True)
             #if val_dict['auc'] > best_val_auc:
             #if val_dict['auc'] > best_val_auc and mmd2_real.mean().data[0] < best_mmd_real:
-            if mmd2_real.mean().data[0] < best_mmd_real:
-                best_mmd_real = mmd2_real.mean().data[0]
+            if mmd2_real.mean().data.item() < best_mmd_real:
+                best_mmd_real = mmd2_real.mean().data.item()
                 best_val_mae = val_dict['mae']
                 best_val_auc = val_dict['auc']
                 best_tst_auc = tst_dict['auc']
@@ -352,5 +352,5 @@ for epoch in range(1, args.max_iter + 1):
 
         # stopping condition
         #if best_mmd_real < 1e-4:
-        if mmd2_real.mean().data[0] < 1e-5:
+        if mmd2_real.mean().data.item() < 1e-5:
             exit(0)
