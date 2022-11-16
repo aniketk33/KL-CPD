@@ -3,10 +3,13 @@
 
 import os
 import numpy as np
+import pandas as pd
 import scipy.io as sio
 import math
 import torch
 from torch.autograd import Variable
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
 
 
 class DataLoader(object):
@@ -33,24 +36,55 @@ class DataLoader(object):
                 L[i] = 1;
         return L;
     
+    def PCA(self):
+        T_coordinates_df = self.coordinates_df[['X','Y','Z']].to_numpy().T
+        # mean_x = np.mean(T_coordinates_df[0,:])
+        # mean_y = np.mean(T_coordinates_df[1,:])
+        # mean_z = np.mean(T_coordinates_df[2,:])
+        # mean_vector = np.array([[mean_x],[mean_y],[mean_z]])
+        covariance_mat = np.cov([T_coordinates_df[0,:],T_coordinates_df[1,:],T_coordinates_df[2,:]])
+        eig_val, eig_vec = np.linalg.eig(covariance_mat)
+        eig_pairs = [(np.abs(eig_val[i]), eig_vec[:,i]) for i in range(len(eig_val))]
+        eig_pairs.sort(key=lambda x: x[0], reverse=True)
+        matrix_w = np.hstack((eig_pairs[0][1].reshape(3,1), eig_pairs[1][1].reshape(3,1)))
+        transformed_coordinates = matrix_w.T.dot(T_coordinates_df)
+        transformed_coordinates_df = pd.DataFrame({'X':transformed_coordinates.T[:,0], 'Y':transformed_coordinates.T[:,1]})
+        return transformed_coordinates_df
+    
     # load data
     def load_data(self, trn_ratio=0.6, val_ratio=0.8):
         assert(os.path.lexists(self.data_path))
-        x_file = self.data_path;
-        y_file = x_file;
-        y_file = list(y_file)
-        y_file[9] = 'y';
-        y_file = ''.join(y_file);
+        # x_file = self.data_path;
+        # y_file = x_file;
+        # y_file = list(y_file)
+        # y_file[9] = 'y';
+        # y_file = ''.join(y_file);
         # self.Y = np.load(x_file).transpose(); # Y: time series data, time length x number of variables
         file_data = sio.loadmat(self.data_path)
-        self.Y =  file_data['Y'] # Y: time series data, time length x number of variables
+        x_axis = file_data['trace'][:,:,0]
+        y_axis = file_data['trace'][:,:,1]
+        z_axis = file_data['trace'][:,:,2]
+        X, Y, Z = [], [], []
+        for i in x_axis:
+            for j in i:
+                X.append(j)
+        for i in y_axis:
+            for j in i:
+                Y.append(j)
+        for i in z_axis:
+            for j in i:
+                Z.append(j)
+        self.coordinates_df = pd.DataFrame({'X':X, 'Y':Y, 'Z':Z})
+        coordinates = self.PCA()
+        self.Y =  coordinates['X'] # Y: time series data, time length x number of variables
+        self.Y = self.Y.to_numpy()
         Y_mean = np.mean(self.Y);
         Y_std = np.std(self.Y);
         self.Y = (self.Y - Y_mean)/Y_std;
         # l_data = np.load(y_file);                               # L: label of anomaly, time length x 1
-        l_data = file_data['L']                               # L: label of anomaly, time length x 1
+        l_data = coordinates['Y']                               # L: label of anomaly, time length x 1
         self.L = self.diff(l_data);
-        self.T, self.D = self.Y.shape                           # T: time length; D: variable dimension
+        self.T, self.D = self.Y.shape[0], 1                           # T: time length; D: variable dimension
         self.n_trn = int(np.ceil(self.T * trn_ratio))           # n_trn: first index of val set
         self.n_val = int(np.ceil(self.T * val_ratio))           # n_val: first index of tst set
         self.var_dim = self.D * self.sub_dim
@@ -61,7 +95,7 @@ class DataLoader(object):
         self.Y_subspace = np.zeros((self.T, self.D, self.sub_dim))
         for t in range(self.sub_dim, self.T):
             for d in range(self.D):
-                self.Y_subspace[t, d, :] = self.Y[t-self.sub_dim+1:t+1, d].flatten()
+                self.Y_subspace[t, d, :] = self.Y[t-self.sub_dim+1:t+1]
 
         # Y_subspace is now T x (Dxsub_dim)
         self.Y_subspace = self.Y_subspace.reshape(self.T, -1)
@@ -89,17 +123,19 @@ class DataLoader(object):
         Y = torch.zeros((n, self.D))                        # true signal
         X_p = torch.zeros((n, self.wnd_dim, self.var_dim))  # past window buffer
         X_f = torch.zeros((n, self.wnd_dim, self.var_dim))  # future window buffer
-
+        print(f'Size of n:{n}')
         # XXX: dirty trick to augment the last buffer
         data = np.concatenate((self.Y_subspace, self.Y_subspace[-self.wnd_dim:, :]))
+        print(data.shape)
         for i in range(n):
             l = idx_set[i] - self.wnd_dim
             m = idx_set[i]
             u = idx_set[i] + self.wnd_dim
-            X_p[i, :, :] = torch.from_numpy(data[l:m, :])
+            print(X_p.shape, X_f.shape, Y.shape, L.shape)
+            X_p[i, :, :] = torch.from_numpy(data[xl:m, :])
             X_f[i, :, :] = torch.from_numpy(data[m:u, :])
-            Y[i, :] = torch.from_numpy(self.Y[m, :])
-            L[i] = torch.from_numpy(self.L[m]);
+            Y[i:] = torch.from_numpy(self.Y[m:])
+            L[i] = torch.from_numpy(self.L[m])
         return {'X_p': X_p, 'X_f': X_f, 'Y': Y, 'L': L}
 
     def get_batches(self, data_set, batch_size, shuffle=False):

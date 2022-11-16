@@ -14,6 +14,8 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 import torch.backends.cudnn as cudnn
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 import mmd_util
 from data_loader import DataLoader
@@ -73,8 +75,12 @@ class NetD(nn.Module):
 def valid_epoch(loader, data, netD, batch_size, Y_true, L_true):
     netD.eval()
     Y_pred = []
+    X_test_p = []
+    X_test_f = []
     for inputs in loader.get_batches(data, batch_size, shuffle=False):
         X_p, X_f = inputs[0], inputs[1]
+        X_test_p.append(X_p)
+        X_test_f.append(X_f)
         batch_size = X_p.size(0)
 
         X_p_enc, _ = netD(X_p)
@@ -82,7 +88,9 @@ def valid_epoch(loader, data, netD, batch_size, Y_true, L_true):
         Y_pred_batch = mmd_util.batch_mmd2_loss(X_p_enc, X_f_enc, sigma_var)
         Y_pred.append(Y_pred_batch.data.cpu().numpy())
     Y_pred = np.concatenate(Y_pred, axis=0)
-
+    X_test_p = np.concatenate(X_test_p, axis=0)
+    X_test_f = np.concatenate(X_test_f, axis=0)
+    print(X_test_f.shape, X_test_p.shape, Y_pred.shape)
     L_pred = Y_pred
     fp_list, tp_list, thresholds = sklearn.metrics.roc_curve(L_true, L_pred)
     auc = sklearn.metrics.auc(fp_list, tp_list)
@@ -90,9 +98,20 @@ def valid_epoch(loader, data, netD, batch_size, Y_true, L_true):
                  'L_pred': L_pred,
                  'Y_true': Y_true,
                  'L_true': L_true,
+                 'X_test': X_test_p,
                  'mse': -1, 'mae': -1, 'auc': auc}
     return eval_dict
 
+def plot_predictions(X_test,Y_test, L_test, Y_pred, L_pred):
+    # plt.figure(figsize=(10,15))
+    # print('****')
+    # print(X_test.shape, Y_test.shape, Y_pred.shape)
+    # plt.scatter(Y_test, Y_pred, label='Test data')
+    sns.scatterplot(Y_test, label='Test')
+    sns.scatterplot(Y_pred, label='Predictions')
+    # plt.scatter(X_test, Y_pred, label='Predictions data')
+    plt.legend()
+    plt.show()
 
 
 # ========= Setup input argument =========#
@@ -104,7 +123,7 @@ parser.add_argument('--gpu', type=int, default=0, help='gpu device id')
 parser.add_argument('--cuda', type=str, default=False, help='use gpu or not')
 parser.add_argument('--random_seed', type=int, default=1126,help='random seed')
 
-parser.add_argument('--wnd_dim', type=int, required=True, default=10, help='window size (past and future)')
+parser.add_argument('--wnd_dim', type=int, required=False, default=10, help='window size (past and future)')
 parser.add_argument('--sub_dim', type=int, default=1, help='dimension of subspace embedding')
 
 # RNN hyperparemters
@@ -215,7 +234,8 @@ Y_val = Data.val_set['Y'].numpy()
 L_val = Data.val_set['L'].numpy()
 Y_tst = Data.tst_set['Y'].numpy()
 L_tst = Data.tst_set['L'].numpy()
-
+# print(f"The shape of given train and test dataset:\nY_val: {Y_val.shape}\nL_val: {L_val.shape}\nY_test: {Y_tst.shape}\nL_test: {L_tst.shape}")
+# print(Y_tst)
 n_batchs = int(math.ceil(len(Data.trn_set['Y']) / float(args.batch_size)))
 print('n_batchs', n_batchs, 'batch_size', args.batch_size)
 
@@ -249,6 +269,8 @@ for epoch in range(1, args.max_iter + 1):
 
             inputs = next(trn_loader)
             X_p, X_f, Y_true = inputs[0], inputs[1], inputs[2]
+            # print('********')
+            # print(X_p.shape, X_f.shape, Y_true.shape)
             batch_size = X_p.size(0)
             bidx += 1
 
@@ -349,6 +371,7 @@ for epoch in range(1, args.max_iter + 1):
                 torch.save(netG.state_dict(), '%s/%s.netG.pkl' % (args.save_path, args.save_name))
                 torch.save(netD.state_dict(), '%s/%s.netD.pkl' % (args.save_path, args.save_name))
             print(" [best_val_auc %.6f best_tst_auc %.6f best_epoch %3d]" % (best_val_auc, best_tst_auc, best_epoch))
+            plot_predictions(X_test=tst_dict['X_test'], Y_test=Y_tst, L_test=L_tst, Y_pred=tst_dict['Y_pred'], L_pred=tst_dict['L_pred'])
 
         # stopping condition
         #if best_mmd_real < 1e-4:
